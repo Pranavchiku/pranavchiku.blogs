@@ -1,0 +1,78 @@
+title = "Pranavchiku Blogs"
+baseURL = 'https://pranavchiku.blogs/'
+
+# This is what goes in <html lang="">
+languageCode = 'en-us'
+
+# This defines how dates are formatted
+defaultContentLanguage = "en-gb"
+
+# traditional way: theme component resides in directory 'themes' 
+theme = "hugo-blog-awesome"
+
+[markup]
+  [markup.highlight]
+    noClasses = false
+  [markup.goldmark.renderer]
+    unsafe = true
+	[markup.tableOfContents]
+		startLevel = 2 # ToC starts from H2
+		endLevel = 4 # ToC ends at H4
+		ordered = false # generates <ul> instead of <ol>
+
+[menu]
+    [[menu.main]]
+        pageRef="/"
+        name = 'Home'
+        url = '/posts'
+        weight = 10
+
+    [[menu.main]]
+        pageRef="GSoC"
+        name = 'GSoC'
+        url = '/gsoc-blogs/'
+        weight = 20
+
+[params]
+    defaultColor = "dark"
+    description = "Minimal site to render blogs"
+    mainSections = ['posts', 'gsoc-blogs']
+    toc = true # set to false to disable table of contents 'globally'
+    tocOpen = false # set to true to open table of contents by default
+    goToTop = true # set to false to disable 'go to top' button
+    dateFormat = "" # date format used to show dates on various pages. If nothing is specified, then "2 Jan 2006" format is used.
+    # See https://gohugo.io/functions/format/#hugo-date-and-time-templating-reference for available date formats.
+    rssFeedDescription = "summary" # available options: 1) summary 2) full
+
+[params.contact]
+    email = 'goswami.4@iitj.ac.in'
+    phone = '+91 9328276067'
+
+[params.author]
+    avatar = "pranavchiku.jpeg" # put the file in assets folder; also ensure that image has same height and width
+    # Note: image is not rendered if the resource(avatar image) is not found. No error is displayed.
+    intro = "Hey there :)"
+    name = "Pranav Goswami"
+    description = "THERE IS NO NEXT SEMESTER"
+
+[params.webmanifest]
+    name = "pranavchiku blogs" # will use "params.sitename" or "title" by default
+    short_name = "pc-blogs" # same as name
+    start_url = "/" # will use homepage url by default
+    theme_color = "#434648" # default is "#434648" (base color of text). Also will override html `<meta name="theme-color" />`
+    background_color = "#fff" # by default depend on "params.defaultColor" for "light" or "auto" will be set to "#fff" for dark will be "#131418" (color of dark mode background)
+    display = "standalone"
+
+[params.browserconfig]
+    TileColor = "#2d89ef" # default windows 10 blue tile color
+
+[[params.socialIcons]]
+    name = "github"
+    url = "https://github.com/pranavchiku"
+
+[[params.socialIcons]]
+    name = "linkedin"
+    url = "https://www.linkedin.com/in/pranavgoswami1/"
+
+
+tags = ["blog", "responsive", "minimal", "dark", "light"]
