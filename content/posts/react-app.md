@@ -139,7 +139,7 @@ export default App;
 
 ## Preview
 
-<img src="../../assets/react-app.png" />
+<img src="https://github.com/Pranavchiku/pranavchiku.blogs/blob/main/assets/react-app.png?raw=true">
 
 ## Conclusion
 
