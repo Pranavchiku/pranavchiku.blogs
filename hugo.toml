@@ -27,6 +27,11 @@ theme = "hugo-blog-awesome"
         url = '/posts'
         weight = 10
 
+    [[menu.main]]
+        name = 'Return'
+        url = 'https://pranavchiku.github.io'
+        weight = 20
+
 [params]
     defaultColor = "dark"
     description = "Minimal site to render blogs"
