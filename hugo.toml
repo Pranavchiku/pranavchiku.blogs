@@ -27,16 +27,10 @@ theme = "hugo-blog-awesome"
         url = '/posts'
         weight = 10
 
-    [[menu.main]]
-        pageRef="GSoC"
-        name = 'GSoC'
-        url = '/gsoc-blogs/'
-        weight = 20
-
 [params]
     defaultColor = "dark"
     description = "Minimal site to render blogs"
-    mainSections = ['posts', 'gsoc-blogs']
+    mainSections = ['posts']
     toc = true # set to false to disable table of contents 'globally'
     tocOpen = false # set to true to open table of contents by default
     goToTop = true # set to false to disable 'go to top' button
