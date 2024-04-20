@@ -28,6 +28,11 @@ theme = "hugo-blog-awesome"
         weight = 10
 
     [[menu.main]]
+        name = 'OpenMp'
+        url = '/openmp-blog'
+        weight = 20
+
+    [[menu.main]]
         name = 'Return'
         url = 'https://pranavchiku.github.io'
         weight = 20
@@ -35,7 +40,7 @@ theme = "hugo-blog-awesome"
 [params]
     defaultColor = "dark"
     description = "Minimal site to render blogs"
-    mainSections = ['posts']
+    mainSections = ['posts', 'openmp-blog']
     toc = true # set to false to disable table of contents 'globally'
     tocOpen = false # set to true to open table of contents by default
     goToTop = true # set to false to disable 'go to top' button
