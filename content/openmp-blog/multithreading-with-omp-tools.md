@@ -129,6 +129,69 @@ Hello from thread: 2
 
 To ensure that the output from different threads doesn't get mixed up, we use `mutex`. `mutex` synchronize access to the output stream.
 
+## Using Posix threads
+
+One may definetly think, we already achieved multithreading using `std::thread` then what is the need to read about `Posix threads`. So, as per what [stackoverflow](https://stackoverflow.com/questions/13134186/c11-stdthread-vs-posix-threads) suggests:
+
+_If you want to run code on many platforms, go for Posix Threads. They are available almost everywhere and are quite mature. On the other hand if you only use Linux/gcc std::thread is perfectly fine - it has a higher abstraction level, a really good interface and plays nicely with other C++11 classes._
+
+_The C++11 std::thread class unfortunately doesn't work reliably (yet) on every platform, even if C++11 seems available. For instance in native Android std::thread or Win64 it just does not work or has severe performance bottlenecks (as of 2012)._
+
+_A good replacement is boost::thread - it is very similar to std::thread (actually it is from the same author) and works reliably, but, of course, it introduces another dependency from a third party library._
+
+Now, having known requirement of posix threads, this is how the modified code looks like:
+
+```cpp
+#include <iostream>
+#include <pthread.h>
+#include <omp.h>
+
+pthread_mutex_t mtx = PTHREAD_MUTEX_INITIALIZER;
+
+void* helloFromThread(void* arg) {
+    int thread_id = *((int*)arg);
+    pthread_mutex_lock(&mtx);
+    std::cout << "Hello from thread: " << thread_id << std::endl;
+    pthread_mutex_unlock(&mtx);
+    return NULL;
+}
+
+int main() {
+    const int num_threads = omp_get_max_threads();
+    pthread_t threads[num_threads];
+    int thread_ids[num_threads];
+
+    std::cout << "omp_get_max_threads(): " << omp_get_max_threads() << "\n";
+
+    for (int i = 0; i < num_threads; ++i) {
+        thread_ids[i] = i;
+        pthread_create(&threads[i], NULL, helloFromThread, (void*)&thread_ids[i]);
+    }
+
+    for (int i = 0; i < num_threads; ++i) {
+        pthread_join(threads[i], NULL);
+    }
+
+    return 0;
+}
+```
+
+You have to now just include `<pthread.h>` and use `PTHREAD_MUTEX_INITIALIZER` instead and apply changes at consequent places.
+
+```console
+% time /opt/homebrew/bin/g++-13 a-pthread-openmp.cpp -fopenmp -pthread && ./a.out
+/opt/homebrew/bin/g++-13 a-pthread-openmp.cpp -fopenmp -pthread  0.17s user 0.16s system 78% cpu 0.432 total
+omp_get_max_threads(): 8
+Hello from thread: 0
+Hello from thread: 3
+Hello from thread: 2
+Hello from thread: 4
+Hello from thread: 1
+Hello from thread: 5
+Hello from thread: 6
+Hello from thread: 7
+```
+
 ## Question
 
 - I see no builtin way to execute a parallel construct in [`runtime library`](https://www.openmp.org/spec-html/5.0/openmp.html) routines provided by `omp`. `gnu` and `llvm` guys have developed their own wrappers over these runtime library, so I think we'll have to do that, and if yes, was the above example a correct direction to proceed?
