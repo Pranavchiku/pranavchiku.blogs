@@ -39,9 +39,13 @@ void foo(param)
 std::thread thread_obj(foo, params);
 ```
 
-## Openmp example
+## Examples
+
+### Example 1
 
 For our understanding, I'll use the following toy example:
+
+#### openmp 
 
 ```cpp
 #include <stdio.h>
@@ -75,6 +79,8 @@ Hello from thread: 0
 Hello from thread: 7
 
 ```
+
+#### std::thread
 
 This can be very easily translated to:
 
@@ -129,7 +135,7 @@ Hello from thread: 2
 
 To ensure that the output from different threads doesn't get mixed up, we use `mutex`. `mutex` synchronize access to the output stream.
 
-## Using Posix threads
+#### Posix threads
 
 One may definetly think, we already achieved multithreading using `std::thread` then what is the need to read about `Posix threads`. So, as per what [stackoverflow](https://stackoverflow.com/questions/13134186/c11-stdthread-vs-posix-threads) suggests:
 
@@ -190,6 +196,152 @@ Hello from thread: 1
 Hello from thread: 5
 Hello from thread: 6
 Hello from thread: 7
+```
+
+### Example 2
+
+Increasing the complexity of example, here is the following cpp code that uses `#pragma omp parallel for` and assigns value to an array of length `1000000`.
+
+#### openmp
+
+```cpp
+#include <stdio.h>
+#include <omp.h>
+
+void initialize_array( int n, float *a, float val ) {
+	int i;
+	#pragma omp parallel
+	{
+		#pragma omp for
+		for (i = 0; i < n; i++) {
+			a[i] = val;
+		}
+	}
+}
+
+int main() {
+	float a[1000000];
+	initialize_array(1000000, a, 12.91);
+}
+```
+
+```console
+% time /opt/homebrew/bin/g++-13 normal.cpp -fopenmp && ./a.out
+/opt/homebrew/bin/g++-13 normal.cpp -fopenmp  0.07s user 0.16s system 67% cpu 0.343 total
+```
+
+#### std::thread
+
+Translate version of the example is shown below:
+
+```cpp
+#include <iostream>
+#include <omp.h>
+#include <thread>
+#include <mutex>
+
+std::mutex mtx; // Declare a mutex
+
+void initialize_array(int n, float *a, float val, int start, int end) {
+    for (int i = start; i < end; ++i) {
+        // Lock the mutex before accessing the shared array
+        mtx.lock();
+        a[i] = val;
+        // Unlock the mutex after modifying the array
+        mtx.unlock();
+    }
+}
+
+int main() {
+	const int array_size = 1000000;
+	int num_threads = omp_get_max_threads();
+
+	float a[array_size];
+
+	int chunk_size = array_size / num_threads;
+
+	std::thread threads[num_threads];
+    	for (int i = 0; i < num_threads; ++i) {
+        	int start = i * chunk_size;
+        	int end = (i == num_threads - 1) ? array_size : (i + 1) * chunk_size;
+        	threads[i] = std::thread(initialize_array, array_size, a, 12.91f, start, end);
+    	}
+
+    	// Join threads
+    	for (int i = 0; i < num_threads; ++i) {
+        	threads[i].join();
+    	}
+
+	return 0;
+}
+```
+
+```console
+% time /opt/homebrew/bin/g++-13 b.cpp -fopenmp -pthread && ./a.out
+/opt/homebrew/bin/g++-13 b.cpp -fopenmp -pthread  0.24s user 0.05s system 107% cpu 0.271 total
+```
+
+#### Posix threads
+
+Using posix thread, it looks like:
+
+```cpp
+#include <iostream>
+#include <omp.h>
+#include <pthread.h>
+
+pthread_mutex_t mtx = PTHREAD_MUTEX_INITIALIZER;
+
+struct ThreadArgs {
+    float *array;
+    float value;
+    int start;
+    int end;
+};
+
+
+void* initialize_array(void* arg) {
+    ThreadArgs* args = static_cast<ThreadArgs*>(arg);
+
+    for (int i = args->start; i < args->end; ++i) {
+        pthread_mutex_lock(&mtx);
+        args->array[i] = args->value;
+        pthread_mutex_unlock(&mtx);
+    }
+
+    delete args;
+    return nullptr;
+}
+
+int main() {
+    int num_threads = omp_get_max_threads();
+
+    float a[1000000];
+
+    int chunk_size = 1000000 / num_threads;
+
+    pthread_t threads[num_threads];
+    for (int i = 0; i < num_threads; ++i) {
+        ThreadArgs* args = new ThreadArgs();
+        args->array = a;
+        args->value = 12.91f;
+        args->start = i * chunk_size;
+        args->end = (i == num_threads - 1) ? 1000000 : (i + 1) * chunk_size;
+        pthread_create(&threads[i], nullptr, initialize_array, static_cast<void*>(args));
+    }
+
+    for (int i = 0; i < num_threads; ++i) {
+        pthread_join(threads[i], nullptr);
+    }
+
+    return 0;
+}
+```
+
+
+```console
+% time /opt/homebrew/bin/g++-13 b-pthread-openmp.cpp -fopenmp -pthread && ./a.out
+/opt/homebrew/bin/g++-13 b-pthread-openmp.cpp -fopenmp -pthread  0.17s user 0.05s system 106% cpu 0.207 total
 ```
 
 ## Question
