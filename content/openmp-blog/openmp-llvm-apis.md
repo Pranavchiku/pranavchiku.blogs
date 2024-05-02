@@ -12,7 +12,7 @@ On page 12 of [llvm-openmp-reference](https://raw.githubusercontent.com/llvm/llv
 
 ## Example 1
 
-Let's begin with fairly small example that prints corresponding thread it:
+Let's begin with fairly small example that prints corresponding thread number:
 
 ### openmp pragma
 
@@ -50,15 +50,13 @@ Hello from thread: 1
 
 ### translated code
 
-To write the code that uses llvm openmp routines, we first need to understand how this gets compiled, and this can be done by emitting llvm. To do this, one shall use the following code:
+To write the code that uses llvm openmp routines, we first need to understand how this gets compiled, and this can be done by emitting llvm. To do this, one shall use the following command:
 
 ```
 clang++ -S -emit-llvm a.cpp -fopenmp
 ```
 
 Generated llvm looks like:
-
-> a.ll
 
 <details>
 
