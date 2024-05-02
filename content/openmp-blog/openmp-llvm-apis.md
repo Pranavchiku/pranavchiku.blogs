@@ -270,3 +270,9 @@ Tadaaa! we now know how to use llvm openmp routines in cpp and get it working.
 ---
 
 In next blog, I'll increase complexity of examples and explain how it functions.
+
+---
+
+## Read also
+
+- [Openmp transformation using llvm-openmp runtime routines-2](https://pranavchiku.github.io/pranavchiku.blogs/openmp-blog/openmp-llvm-apis-2/)
