@@ -48,7 +48,7 @@ Hello from thread: 1
 ./a.out  0.00s user 0.00s system 75% cpu 0.003 total
 ```
 
-#### translated code
+### translated code
 
 To write the code that uses llvm openmp routines, we first need to understand how this gets compiled, and this can be done by emitting llvm. To do this, one shall use the following code:
 
