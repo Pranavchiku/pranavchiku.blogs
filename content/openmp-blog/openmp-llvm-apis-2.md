@@ -1000,6 +1000,7 @@ No use of any new llvm openmp routines and thus we can translate it as shown:
 ```cpp
 #include <stdio.h>
 #include <omp.h>
+#include <algorithm>
 #include "kmp.h"
 
 void initialize_array( int n, float *a, float val ) {
@@ -1011,8 +1012,6 @@ void initialize_array( int n, float *a, float val ) {
             a[i] = val;
         }
     }
-
-    #pragma omp barrier
     return;
 }
 
@@ -1027,6 +1026,7 @@ void parallel_Sum_created( kmp_int32 *global_tid, kmp_int32 *bound_tid, float *t
     int *upper = new int(*n);
     int *stride = new int(1);
     __kmpc_for_static_init_4(&loc, *global_tid, 34, lastiter, lower, upper, stride, 1, 1);
+    *lower = std::max(0, *lower - 1);
     while ( *lower < *upper ) {
         partial_sum += a[*lower];
         *lower += 1;
@@ -1036,10 +1036,10 @@ void parallel_Sum_created( kmp_int32 *global_tid, kmp_int32 *bound_tid, float *t
     *total_Sum += partial_sum;
     printf("Thread %d: partial sum: %f total sum: %f\n", omp_get_thread_num(), partial_sum, *total_Sum);
     return;
-} 
+}
 
 void parallel_Sum( int n, float *a ) {
-    float total_Sum;
+    float total_Sum = 0;
 
     // @3 = private unnamed_addr constant %struct.ident_t { i32 0, i32 2, i32 0, i32 22, ptr @0 }, align 8
     ident_t loc; loc.reserved_1 = 0; loc.flags = 2; loc.reserved_2 = 0; loc.reserved_3 = 22; loc.psource = ";unknown;unknown;0;0;;\00";
@@ -1058,21 +1058,22 @@ int main() {
 
 ```console
 % time clang++ e-transformed.cpp -fopenmp && time ./a.out
-clang++ e-transformed.cpp -fopenmp  0.09s user 0.03s system 120% cpu 0.095 total
-Thread 2: partial sum: 124999.000000 total sum: 374999.000000
-Thread 0: partial sum: 125000.000000 total sum: 374999.000000
-Thread 3: partial sum: 124999.000000 total sum: 374999.000000
-Thread 4: partial sum: 124999.000000 total sum: 499998.000000
-Thread 7: partial sum: 124999.000000 total sum: 624997.000000
-Thread 1: partial sum: 124999.000000 total sum: 749996.000000
-Thread 6: partial sum: 124999.000000 total sum: 874995.000000
-Thread 5: partial sum: 124999.000000 total sum: 999994.000000
-Total sum: 999994.000000
-./a.out  0.01s user 0.00s system 206% cpu 0.004 total
-
+ld: warning: reexported library with install name '/opt/homebrew/opt/llvm/lib/libunwind.1.dylib' found at '/opt/homebrew/Cellar/llvm/18.1.4/lib/libunwind.1.0.dylib' couldn't be matched with any parent library and will be linked directly
+clang++ e-transformed.cpp -fopenmp  0.18s user 0.04s system 105% cpu 0.206 total
+Thread 0: partial sum: 125000.000000 total sum: 375000.000000
+Thread 7: partial sum: 125000.000000 total sum: 500000.000000
+Thread 2: partial sum: 125000.000000 total sum: 375000.000000
+Thread 3: partial sum: 125000.000000 total sum: 375000.000000
+Thread 6: partial sum: 125000.000000 total sum: 750000.000000
+Thread 5: partial sum: 125000.000000 total sum: 875000.000000
+Thread 1: partial sum: 125000.000000 total sum: 1000000.000000
+Thread 4: partial sum: 125000.000000 total sum: 750000.000000
+Total sum: 1000000.000000
+./a.out  0.01s user 0.00s system 258% cpu 0.003 total
 ```
 
-Although, there looks slight divergence in value that needs to be debugged and we need to fully understand how is `#pragma critical` being handled in llvm openmp runtime routine calls.
+
+We need to fully understand how is `#pragma critical` being handled in llvm openmp runtime routine calls.
 
 ----
 
