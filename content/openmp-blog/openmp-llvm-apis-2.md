@@ -1078,3 +1078,195 @@ We need to fully understand how is `#pragma critical` being handled in llvm open
 ----
 
 That's it for this blog, we'll continue to push and get LFortran support openmp code :)
+
+
+## race free reduction
+
+Umm, no, not yet. Upon executing reduction code multiple times, I got this:
+
+```console
+% time clang++ e.cpp -fopenmp && time ./a.out
+clang++ e.cpp -fopenmp  0.08s user 0.03s system 117% cpu 0.091 total
+Total sum: 875000.000000
+./a.out  0.01s user 0.00s system 266% cpu 0.003 total
+```
+
+Something is wrong, and then we get to know that reduction code is not free from race conditions and thus needs to be rewritten as:
+
+> e-reduction.cpp
+
+```cpp
+#include <stdio.h>
+#include <omp.h>
+
+void initialize_array( int n, float *a, float val ) {
+	int i;
+	#pragma omp parallel
+	{
+		#pragma omp for
+		for (i = 0; i < n; i++) {
+			a[i] = val;
+		}
+	}
+}
+
+void parallel_Sum( int n, float *a ) {
+	int i;
+	float total_sum;
+
+	#pragma omp parallel for reduction(+:total_sum)
+	for (i = 0; i < n; i++) {
+		total_sum += a[i];
+	}
+
+	printf("Total sum: %f\n", total_sum);
+}
+int main() {
+	float a[1000000];
+
+	initialize_array(1000000, a, 1.0);
+
+	parallel_Sum(1000000, a);
+
+	return 0;
+}
+```
+
+Which can then on understanding `llvm` transformed to:
+
+```cpp
+#include <stdio.h>
+#include <omp.h>
+#include <algorithm>
+#include "kmp.h"
+
+void initialize_array( int n, float *a, float val ) {
+    int i;
+    #pragma omp parallel 
+    {
+        #pragma omp for
+        for (i = 0; i < n; i++) {
+            a[i] = val;
+        }
+    }
+    return;
+}
+
+void parallel_Sum_reduction( float *lhs_data, float *rhs_data ) {
+    *lhs_data += *rhs_data;
+    return;
+}
+
+void parallel_Sum_created( kmp_int32 *global_tid, kmp_int32 *bound_tid, float *total_Sum, int *n, float *a ) {
+    // @1 = private unnamed_addr constant %struct.ident_t { i32 0, i32 514, i32 0, i32 22, ptr @0 }, align 8
+    ident_t loc; loc.reserved_1 = 0; loc.flags = 514; loc.reserved_2 = 0; loc.reserved_3 = 22; loc.psource = ";unknown;unknown;0;0;;\00";
+    // @2 = private unnamed_addr constant %struct.ident_t { i32 0, i32 66, i32 0, i32 22, ptr @0 }, align 8
+    ident_t loc2; loc2.reserved_1 = 0; loc2.flags = 66; loc2.reserved_2 = 0; loc2.reserved_3 = 22; loc2.psource = ";unknown;unknown;0;0;;\00";
+    float partial_sum = 0;
+
+    int *lastiter = new int(0);
+    int *lower = new int(0);
+    int *upper = new int(*n);
+    int *stride = new int(1);
+    __kmpc_for_static_init_4(&loc, *global_tid, 34, lastiter, lower, upper, stride, 1, 1);
+    *lower = std::max(0, *lower - 1);
+    while ( *lower < *upper ) {
+        partial_sum += a[*lower];
+        *lower += 1;
+    }
+    __kmpc_for_static_fini(&loc, *global_tid);
+    
+    // @4 = private unnamed_addr constant %struct.ident_t { i32 0, i32 18, i32 0, i32 22, ptr @0 }, align 8
+    ident_t loc3; loc3.reserved_1 = 0; loc3.flags = 18; loc3.reserved_2 = 0; loc3.reserved_3 = 22; loc3.psource = ";unknown;unknown;0;0;;\00";
+
+    // %73 = call i32 @__kmpc_reduce_nowait(ptr @4, i32 %72, i32 1, i64 8, ptr %22, ptr @_Z12parallel_SumiPf.omp_outlined.omp.reduction.reduction_func, ptr @.gomp_critical_user_.reduction.var)
+    kmp_critical_name *lck;
+    kmp_int32 res = __kmpc_reduce_nowait(&loc3, *global_tid, 1, 8, &partial_sum, (void (*)(void *, void *))parallel_Sum_reduction, lck);
+    if ( res == 1 ) {
+        // @result 1 for the primary thread, 0 for all other team threads, 2 for all team
+        // threads if atomic reduction needed
+        *total_Sum += partial_sum;
+        __kmpc_end_reduce_nowait(&loc3, *global_tid, lck);
+    } else if ( res == 2 ) {
+        // %80 = atomicrmw fadd ptr %24, float %79 monotonic, align 4
+        __kmpc_atomic_float4_add(&loc2, *global_tid, total_Sum, partial_sum);
+    }
+
+    return;
+}
+
+void parallel_Sum( int n, float *a ) {
+    float total_Sum = 0;
+
+    // @3 = private unnamed_addr constant %struct.ident_t { i32 0, i32 2, i32 0, i32 22, ptr @0 }, align 8
+    ident_t loc; loc.reserved_1 = 0; loc.flags = 2; loc.reserved_2 = 0; loc.reserved_3 = 22; loc.psource = ";unknown;unknown;0;0;;\00";
+    __kmpc_fork_call(&loc, 3, (kmpc_micro)parallel_Sum_created, &total_Sum, &n, a);
+
+    printf("Total sum: %f\n", total_Sum);
+}
+
+int main() {
+    float a[1000000];
+    initialize_array(1000000, a, 1.0);
+    parallel_Sum(1000000, a);
+}
+```
+
+Here you can notice `__kmpc_reduce_nowait`, `__kmpc_end_reduce_nowait` and `__kmpc_atomic_float4_add` are used, we ported corresponding functions in `kmp.h`.
+
+> kmp.h
+
+```cpp
+typedef float kmp_real32;
+typedef kmp_int32 kmp_critical_name[8];
+....
+/* 2.a.i. Reduce Block without a terminating barrier */
+/*!
+@ingroup SYNCHRONIZATION
+@param loc source location information
+@param global_tid global thread number
+@param num_vars number of items (variables) to be reduced
+@param reduce_size size of data in bytes to be reduced
+@param reduce_data pointer to data to be reduced
+@param reduce_func callback function providing reduction operation on two
+operands and returning result of reduction in lhs_data
+@param lck pointer to the unique lock data structure
+@result 1 for the primary thread, 0 for all other team threads, 2 for all team
+threads if atomic reduction needed
+
+The nowait version is used for a reduce clause with the nowait argument.
+*/
+kmp_int32
+__kmpc_reduce_nowait(ident_t *loc, kmp_int32 global_tid, kmp_int32 num_vars,
+                     size_t reduce_size, void *reduce_data,
+                     void (*reduce_func)(void *lhs_data, void *rhs_data),
+                     kmp_critical_name *lck);
+
+/*!
+@ingroup SYNCHRONIZATION
+@param loc source location information
+@param global_tid global thread id.
+@param lck pointer to the unique lock data structure
+
+Finish the execution of a reduce nowait.
+*/
+void __kmpc_end_reduce_nowait(ident_t *loc, kmp_int32 global_tid,
+                              kmp_critical_name *lck);
+
+// 4-byte add float
+void __kmpc_atomic_float4_add(ident_t *id_ref, int gtid, kmp_real32 *lhs,
+                              kmp_real32 rhs);
+```
+
+And this can be executed using:
+
+```console
+% time clang++ e-transformed-reduction.cpp -fopenmp && time ./a.out
+clang++ e-transformed-reduction.cpp -fopenmp  0.18s user 0.04s system 107% cpu 0.207 total
+Total sum: 1000000.000000
+./a.out  0.01s user 0.00s system 227% cpu 0.004 total
+
+```
+
+Now, I think this blog can be wrapped, thanks for following!
+
